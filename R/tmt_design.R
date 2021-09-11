@@ -1,0 +1,64 @@
+#' @import data.table
+#' @export
+create_TMT_design = function(num_proteins, num_significant,
+                             num_mixtures, num_conditions,
+                             num_subjects, experiment_type = "groupComparison") {
+  proteins = data.table::data.table(Protein = seq_len(num_proteins),
+                                    Join = TRUE)
+  num_channels = num_mixtures * num_subjects
+
+  experiment_design = data.table::data.table(
+    Mixture = rep(seq_len(num_mixtures),
+                  each = num_channels),
+    BioReplicate = rep(rep(seq_len(num_subjects),
+                           times = num_conditions),
+                       times = num_mixtures),
+    Condition = rep(rep(seq_len(num_conditions),
+                        each = num_subjects),
+                    times = num_mixtures),
+    Join = TRUE)
+  if (experiment_type == "groupComparison") {
+    experiment_design[, BioReplicate := paste(Condition, BioReplicate, sep = "_")]
+  }
+  simulated_data = merge(proteins, experiment_design,
+                         allow.cartesian = TRUE, by = "Join")
+  simulated_data[, Join := NULL]
+  simulated_data[, TechRepMixture := 1]
+  simulated_data[, Channel := 1:.N, by = c("Protein", "Mixture")]
+  simulated_data[, Run := paste(Mixture, TechRepMixture, sep = "_")]
+  simulated_data = simulated_data[, lapply(.SD, as.character)]
+  simulated_data[, MixCond := paste(Mixture, Condition, sep = "_")]
+  simulated_data[, IsSignificant := Protein %in% as.character(seq_len(num_significant))]
+  simulated_data
+}
+
+
+#' @export
+simulate_log_abundances = function(tmt_design, baseline, log2FC, sd_mix,
+                                   sd_cond_mix, sd_sub, sd_error) {
+  num_mixtures = data.table::uniqueN(tmt_design$Mixture)
+  num_subjects = data.table::uniqueN(tmt_design$BioReplicate)
+  num_conditions = data.table::uniqueN(tmt_design$Condition)
+
+  mixture_effects = rnorm(num_mixtures, 0, sd_mix)
+  names(mixture_effects) = unique(tmt_design$Mixture)
+  subject_effects = rnorm(num_subjects * num_conditions, 0, sd_sub)
+  names(subject_effects) = unique(tmt_design$BioReplicate)
+  condition_effects = rnorm(num_conditions * num_mixtures, 0, sd_cond_mix)
+  names(condition_effects) = unique(tmt_design$MixCond)
+
+  random_error = rnorm(seq_len(nrow(tmt_design)), 0, sd_error)
+  mix_cond_error = condition_effects[tmt_design$MixCond]
+  mix_error = mixture_effects[tmt_design$Mixture]
+  sub_error = subject_effects[tmt_design$BioReplicate]
+
+  conditions = unique(tmt_design$Condition)
+  log2_fcs = c(0, log2FC)
+  names(log2_fcs) = conditions
+  change = log2_fcs[tmt_design$Condition]
+
+  abundances = baseline + change * tmt_design$IsSignificant +
+    mix_error + mix_cond_error + sub_error + random_error
+  tmt_design$Abundance = abundances
+  tmt_design
+}
