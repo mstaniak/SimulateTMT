@@ -29,6 +29,7 @@ create_TMT_design = function(num_proteins, num_significant,
   simulated_data[, Run := paste(Mixture, TechRepMixture, sep = "_")]
   simulated_data = simulated_data[, lapply(.SD, as.character)]
   simulated_data[, MixCond := paste(Mixture, Condition, sep = "_")]
+  simulated_data[, ProtCond := paste(Protein, Condition, sep = "_")]
   simulated_data[, IsSignificant := Protein %in% as.character(seq_len(num_significant))]
   simulated_data
 }
@@ -43,7 +44,7 @@ simulate_log_abundances = function(tmt_design, baseline, log2FC, sd_mix,
 
   mixture_effects = rnorm(num_mixtures, 0, sd_mix)
   names(mixture_effects) = unique(tmt_design$Mixture)
-  subject_effects = rnorm(num_subjects * num_conditions, 0, sd_sub)
+  subject_effects = rnorm(num_subjects, 0, sd_sub)
   names(subject_effects) = unique(tmt_design$BioReplicate)
   condition_effects = rnorm(num_conditions * num_mixtures, 0, sd_cond_mix)
   names(condition_effects) = unique(tmt_design$MixCond)
@@ -53,13 +54,23 @@ simulate_log_abundances = function(tmt_design, baseline, log2FC, sd_mix,
   mix_error = mixture_effects[tmt_design$Mixture]
   sub_error = subject_effects[tmt_design$BioReplicate]
 
-  conditions = unique(tmt_design$Condition)
-  log2_fcs = c(0, log2FC)
-  names(log2_fcs) = conditions
-  change = log2_fcs[tmt_design$Condition]
+  if (length(log2FC) == 1) {
+    conditions = unique(tmt_design$Condition)
+    log2_fcs = c(0, log2FC)
+    names(log2_fcs) = conditions
+    change = log2_fcs[tmt_design$Condition]
+  } else {
+    prot_conds = unique(tmt_design$ProtCond)
+    log2_fcs = lapply(log2FC, function(x) c(0, x))
+    log2_fcs = unlist(log2_fcs, FALSE, FALSE)
+    log2_fcs = c(log2_fcs, rep(0, length(prot_conds) - length(log2_fcs)))
+    names(log2_fcs) = prot_conds
+    change = log2_fcs[tmt_design$ProtCond]
+  }
 
   abundances = baseline + change * tmt_design$IsSignificant +
     mix_error + mix_cond_error + sub_error + random_error
+  tmt_design = tmt_design[, lapply(.SD, as.factor)]
   tmt_design$Abundance = abundances
   tmt_design
 }
