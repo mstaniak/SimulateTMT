@@ -2,7 +2,7 @@
 #' @export
 create_TMT_design = function(num_proteins, num_significant,
                              num_mixtures, num_conditions,
-                             num_subjects, experiment_type = "groupComparison") {
+                             num_subjects, experiment_type = "time") {
   proteins = data.table::data.table(Protein = seq_len(num_proteins),
                                     Join = TRUE)
   num_channels = num_mixtures * num_subjects
@@ -20,6 +20,7 @@ create_TMT_design = function(num_proteins, num_significant,
   if (experiment_type == "groupComparison") {
     experiment_design[, BioReplicate := paste(Condition, BioReplicate, sep = "_")]
   }
+  experiment_design[, BioReplicate := paste(Mixture, BioReplicate, sep = "_")]
   simulated_data = merge(proteins, experiment_design,
                          allow.cartesian = TRUE, by = "Join")
   simulated_data[, Join := NULL]
