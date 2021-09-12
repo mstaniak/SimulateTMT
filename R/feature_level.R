@@ -1,5 +1,5 @@
 #' @export
-simulate_unique_peptides = function(protein_profile, num_unique,
+simulate_unique_peptides = function(protein_profiles, num_unique,
                                     noise_sd = 0.1, y_axis_noise_rate = 1.5,
                                     feature_effects_range = c(-1, 1)) {
   psms_unique = data.table::rbindlist(
