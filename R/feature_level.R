@@ -37,7 +37,7 @@ simulate_shared_profiles = function(profiles, combinations, num_shared,
   channels = unique(profiles$Channel)
   shared_profiles = vector("list", nrow(combinations))
   for (i in seq_len(nrow(combinations))) {
-    combination = combinations[i, ]
+    combination = unlist(combinations[i, ], TRUE, FALSE)
     weights_set = weights[[i]]
     num_shared_i = num_shared[i]
 
@@ -49,30 +49,23 @@ simulate_shared_profiles = function(profiles, combinations, num_shared,
     channels = unique(selected_dt$Channel)
     proteins_matrix = as.matrix(selected_dt[, -1, with = FALSE])
     shared_profile = proteins_matrix %*% weights_set
-    shared_profile = data.table::data.table(Channel = channels,
-                                            Log2Intensity = shared_profile[, 1])
+    shared_profile = data.table::data.table(Protein = 0,
+                                            Channel = channels,
+                                            Abundance = shared_profile[, 1])
     shared_annot = unique(profiles[, .(Run, Mixture, TechRepMixture,
                                        Channel, BioReplicate, Condition)])
     shared_profile = merge(shared_annot, shared_profile, by = "Channel")
-
-    shared_profiles_i = data.table::rbindlist(
-      lapply(seq_len(num_shared_i), function(feature_id) {
-        x = shared_profile
-        x[, Log2Intensity := Log2Intensity + runif(1, feature_effects_range[1],
-                                                   feature_effects_range[2])]
-        x[, Log2Intensity := Log2Intensity + rnorm(.N, sd = noise_sd)]
-        x[, Log2Intensity := Log2Intensity + rnorm(1, y_axis_noise_rate)]
-        x[, ProteinPresent := 1]
-        x = merge(x, proteins_dt, by = "ProteinPresent",
-                  allow.cartesian = TRUE)
-        protein_ids = paste(as.numeric(unique(x$ProteinName)),
-                            sep = "_", collapse = "_")
-        x[, PSM := paste("PS", feature_id, protein_ids, sep = "_")]
-        x
-      }))
-    shared_profiles_i[, ProteinPresent := NULL]
-    shared_profiles_i = shared_profiles_i[order(ProteinName, PSM,
-                                                Run, as.numeric(as.character(Channel)))]
+    
+    shared_profiles_i = suppressWarnings(simulate_unique_peptides(shared_profile, 10, 0.2, 2.1))
+    shared_profiles_i[, PSM := as.numeric(as.factor(PSM))]
+    protein_ids = paste(proteins[combination], sep = "_", collapse = "_")
+    shared_profiles_i[, PSM := paste("PS", PSM, protein_ids, sep = "_")]
+    shared_profiles_i = data.table::rbindlist(lapply(proteins[combination],
+                                                    function(prot) {
+                                                      x = shared_profiles_i
+                                                      x$ProteinName = prot
+                                                      x
+                                                    }))  
     shared_profiles[[i]] = shared_profiles_i
   }
 

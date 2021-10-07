@@ -62,13 +62,12 @@ simulate_log_abundances = function(tmt_design, baseline, log2FC, sd_mix,
   } else {
     prot_conds = unique(tmt_design$ProtCond)
     log2_fcs = lapply(log2FC, function(x) c(x, 0))
-    log2_fcs = unlist(log2_fcs, FALSE, FALSE)
+    log2_fcs = unlist(log2_fcs, TRUE, FALSE)
     log2_fcs = c(log2_fcs, rep(0, length(prot_conds) - length(log2_fcs)))
     names(log2_fcs) = prot_conds
     change = log2_fcs[tmt_design$ProtCond]
   }
 
-  browser()
   abundances = baseline + change * tmt_design$IsSignificant +
     mix_error + mix_cond_error + sub_error + random_error
   tmt_design = tmt_design[, lapply(.SD, as.factor)]
