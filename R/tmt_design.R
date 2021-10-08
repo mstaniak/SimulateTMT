@@ -30,7 +30,9 @@ create_TMT_design = function(num_proteins, num_significant,
   simulated_data = simulated_data[, lapply(.SD, as.character)]
   simulated_data[, MixCond := paste(Mixture, Condition, sep = "_")]
   simulated_data[, ProtCond := paste(Protein, Condition, sep = "_")]
+  simulated_data[, RunChannel := paste(Run, Channel, sep = "_")]
   simulated_data[, IsSignificant := Protein %in% as.character(seq_len(num_significant))]
+  simulated_data[, NestedBioRep := paste(Mixture, Condition, BioReplicate, sep = "_")]
   simulated_data
 }
 
@@ -39,20 +41,20 @@ create_TMT_design = function(num_proteins, num_significant,
 simulate_log_abundances = function(tmt_design, baseline, log2FC, sd_mix,
                                    sd_cond_mix, sd_sub, sd_error) {
   num_mixtures = data.table::uniqueN(tmt_design$Mixture)
-  num_subjects = data.table::uniqueN(tmt_design$BioReplicate)
   num_conditions = data.table::uniqueN(tmt_design$Condition)
+  num_subjects = uniqueN(tmt_design$NestedBioRep)
 
   mixture_effects = rnorm(num_mixtures, 0, sd_mix)
   names(mixture_effects) = unique(tmt_design$Mixture)
   subject_effects = rnorm(num_subjects, 0, sd_sub)
-  names(subject_effects) = unique(tmt_design$BioReplicate)
+  names(subject_effects) = unique(tmt_design$NestedBioRep)
   condition_effects = rnorm(num_conditions * num_mixtures, 0, sd_cond_mix)
   names(condition_effects) = unique(tmt_design$MixCond)
 
   random_error = rnorm(seq_len(nrow(tmt_design)), 0, sd_error)
   mix_cond_error = condition_effects[tmt_design$MixCond]
   mix_error = mixture_effects[tmt_design$Mixture]
-  sub_error = subject_effects[tmt_design$BioReplicate]
+  sub_error = subject_effects[tmt_design$NestedBioRep]
 
   if (length(log2FC) == 1) {
     conditions = unique(tmt_design$Condition)

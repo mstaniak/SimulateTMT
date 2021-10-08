@@ -2,6 +2,7 @@
 
 export(combine_features)
 export(create_TMT_design)
+export(simulate_dataset)
 export(simulate_log_abundances)
 export(simulate_shared_profiles)
 export(simulate_unique_peptides)
