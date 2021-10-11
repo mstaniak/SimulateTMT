@@ -43,7 +43,7 @@ simulate_shared_profiles = function(profiles, combinations, num_shared,
     channels = unique(selected_dt$Channel)
     proteins_matrix = as.matrix(selected_dt[, -1, with = FALSE])
     shared_profile = proteins_matrix %*% weights_set
-    shared_profile = data.table::data.table(Protein = 0,
+    shared_profile = data.table::data.table(Protein = "0",
                                             Channel = channels,
                                             Abundance = shared_profile[, 1])
     shared_annot = unique(profiles[, .(Run, Mixture, TechRepMixture, RunChannel,

@@ -5,6 +5,10 @@ create_TMT_design = function(num_proteins, num_significant,
                              num_subjects, experiment_type = "time") {
   proteins = data.table::data.table(Protein = seq_len(num_proteins),
                                     Join = TRUE)
+  proteins[, Protein := as.character(Protein)]
+  max_length = max(stringr::str_length(proteins$Protein))
+  proteins[, Protein := stringr::str_pad(Protein, width = 4, pad = "0", side = "left")]
+  proteins[, Protein := paste("Prot", Protein, sep = "_")]
   num_channels = num_mixtures * num_subjects
 
   experiment_design = data.table::data.table(
@@ -31,7 +35,8 @@ create_TMT_design = function(num_proteins, num_significant,
   simulated_data[, MixCond := paste(Mixture, Condition, sep = "_")]
   simulated_data[, ProtCond := paste(Protein, Condition, sep = "_")]
   simulated_data[, RunChannel := paste(Run, Channel, sep = "_")]
-  simulated_data[, IsSignificant := Protein %in% as.character(seq_len(num_significant))]
+  significant_proteins = unique(simulated_data$Protein)[seq_len(num_significant)]
+  simulated_data[, IsSignificant := Protein %in% significant_proteins]
   simulated_data[, NestedBioRep := paste(Mixture, Condition, BioReplicate, sep = "_")]
   simulated_data
 }
