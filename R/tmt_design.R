@@ -41,25 +41,24 @@ create_TMT_design = function(num_proteins, num_significant,
   simulated_data
 }
 
+add_variability = function(labels, sd) {
+  num_objects = uniqueN(labels)
+  effects = rnorm(num_objects, 0, sd)
+  names(effects) = unique(labels)
+  effects[labels]
+}
 
 #' @export
 simulate_log_abundances = function(tmt_design, baseline, log2FC, sd_mix,
                                    sd_cond_mix, sd_sub, sd_error) {
-  num_mixtures = data.table::uniqueN(tmt_design$Mixture)
-  num_conditions = data.table::uniqueN(tmt_design$Condition)
-  num_subjects = uniqueN(tmt_design$NestedBioRep)
 
-  mixture_effects = rnorm(num_mixtures, 0, sd_mix)
-  names(mixture_effects) = unique(tmt_design$Mixture)
-  subject_effects = rnorm(num_subjects, 0, sd_sub)
-  names(subject_effects) = unique(tmt_design$NestedBioRep)
-  condition_effects = rnorm(num_conditions * num_mixtures, 0, sd_cond_mix)
-  names(condition_effects) = unique(tmt_design$MixCond)
-
-  random_error = rnorm(seq_len(nrow(tmt_design)), 0, sd_error)
-  mix_cond_error = condition_effects[tmt_design$MixCond]
-  mix_error = mixture_effects[tmt_design$Mixture]
-  sub_error = subject_effects[tmt_design$NestedBioRep]
+  tmt_design[, MixtureVariability := add_variability(Mixture, sd_mix),
+             by = "Protein"]
+  tmt_design[, SubjectVariability := add_variability(NestedBioRep, sd_sub),
+             by = "Protein"]
+  tmt_design[, ConditionVariability := add_variability(MixCond, sd_cond_mix),
+             by = "Protein"]
+  tmt_design[, RandomError := rnorm(.N, 0, sd_error)]
 
   if (length(log2FC) == 1) {
     conditions = unique(tmt_design$Condition)
@@ -75,9 +74,14 @@ simulate_log_abundances = function(tmt_design, baseline, log2FC, sd_mix,
     change = log2_fcs[tmt_design$ProtCond]
   }
 
-  abundances = baseline + change * tmt_design$IsSignificant +
-    mix_error + mix_cond_error + sub_error + random_error
-  tmt_design = tmt_design[, lapply(.SD, as.factor)]
-  tmt_design$Abundance = abundances
+  tmt_design[, change := change]
+  tmt_design[, Abundance := baseline + change * IsSignificant + MixtureVariability +
+               SubjectVariability + ConditionVariability + RandomError]
+  tmt_design[, MixtureVariability := NULL]
+  tmt_design[, SubjectVariability := NULL]
+  tmt_design[, ConditionVariability := NULL]
+  tmt_design[, RandomError := NULL]
+  tmt_design[, change := NULL]
+  tmt_design = tmt_design[, lapply(.SD, function(x) if (is.character(x)) as.factor(x) else x)]
   tmt_design
 }

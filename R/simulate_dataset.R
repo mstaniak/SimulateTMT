@@ -13,7 +13,7 @@ simulate_dataset = function(protein_level_data, protein_groups, combinations,
     unique_profiles = simulate_unique_peptides(profiles, num_unique,
                                                channel_variation,
                                                noise_sd, y_axis_noise_sd)
-    shared_profiles = simulate_shared_profiles(profiles, combs, num_shared,
+    shared_profiles = simulate_shared_profiles(profiles, combinations, num_shared,
                                                weights, channel_variation,
                                                noise_sd, y_axis_noise_sd)
     all_features = combine_features(unique_profiles, shared_profiles)
