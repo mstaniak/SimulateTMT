@@ -33,7 +33,7 @@ create_TMT_design = function(num_proteins, num_significant,
   simulated_data[, Run := paste(Mixture, TechRepMixture, sep = "_")]
   simulated_data = simulated_data[, lapply(.SD, as.character)]
   simulated_data[, MixCond := paste(Mixture, Condition, sep = "_")]
-  simulated_data[, ProtCond := paste(Protein, Condition, sep = "_")]
+  simulated_data[, ProtCond := paste(Protein, Condition, sep = "__")]
   simulated_data[, RunChannel := paste(Run, Channel, sep = "_")]
   significant_proteins = unique(simulated_data$Protein)[seq_len(num_significant)]
   simulated_data[, IsSignificant := Protein %in% significant_proteins]
@@ -42,39 +42,70 @@ create_TMT_design = function(num_proteins, num_significant,
 }
 
 add_variability = function(labels, sd) {
-  num_objects = uniqueN(labels)
+  num_objects = data.table::uniqueN(labels)
   effects = rnorm(num_objects, 0, sd)
   names(effects) = unique(labels)
   effects[labels]
 }
 
+add_condition_variability = function(input, sd_cond_mix) {
+  tmt_by_log2fc = split(input, input[["change"]])
+  tmt_by_log2fc = lapply(tmt_by_log2fc, function(x) {
+    log2fc = unique(x$change)
+    sd_cond = sd_cond_mix[[as.character(log2fc)]]
+    x[, ConditionVariability := add_variability(MixCond, sd_cond),
+      by = "Protein"]
+    x
+  })
+  data.table::rbindlist(tmt_by_log2fc)
+}
+
 #' @export
 simulate_log_abundances = function(tmt_design, baseline, log2FC, sd_mix,
-                                   sd_cond_mix, sd_sub, sd_error) {
+                                   sd_cond_mix, sd_sub, error_type, sd_error = NULL) {
 
   tmt_design[, MixtureVariability := add_variability(Mixture, sd_mix),
              by = "Protein"]
   tmt_design[, SubjectVariability := add_variability(NestedBioRep, sd_sub),
              by = "Protein"]
-  tmt_design[, ConditionVariability := add_variability(MixCond, sd_cond_mix),
-             by = "Protein"]
-  tmt_design[, RandomError := rnorm(.N, 0, sd_error)]
+  num_conditions = data.table::uniqueN(tmt_design$Condition)
 
   if (length(log2FC) == 1) {
     conditions = unique(tmt_design$Condition)
-    log2_fcs = c(0, log2FC)
+    log2_fcs = c(log2FC, 0)
     names(log2_fcs) = conditions
-    change = log2_fcs[tmt_design$Condition]
+    change_values = log2_fcs[tmt_design$Condition]
+    tmt_design[, change := change_values]
   } else {
-    prot_conds = unique(tmt_design$ProtCond)
-    log2_fcs = lapply(log2FC, function(x) c(x, 0))
+    log2_fcs = lapply(log2FC, function(x) {
+      if (length(x) < num_conditions) {
+        c(x, rep(0, num_conditions - length(x)))
+      } else {
+        x
+      }
+    })
     log2_fcs = unlist(log2_fcs, TRUE, FALSE)
-    log2_fcs = c(log2_fcs, rep(0, length(prot_conds) - length(log2_fcs)))
-    names(log2_fcs) = prot_conds
-    change = log2_fcs[tmt_design$ProtCond]
+    log2FC_dt = data.table::data.table(Protein = rep(sort(unique(tmt_design$Protein))[seq_along(log2FC)],
+                                                     each = num_conditions),
+                                       Condition = rep(reorder(unique(tmt_design$Condition),
+                                                               as.numeric(as.character(unique(tmt_design$Condition)))),
+                                                       times = length(log2FC)),
+                                       change = log2_fcs)
+    tmt_design = merge(tmt_design, log2FC_dt, by = c("Protein", "Condition"), all.x = TRUE)
+    tmt_design[, change := ifelse(is.na(change), 0, change)]
+  }
+  tmt_design = add_condition_variability(tmt_design, sd_cond_mix)
+
+  if (error_type == "constant") {
+    tmt_design[, RandomError := rnorm(.N, 0, sd_error)]
+  } else {
+    tmt_design[, RandomErrorSigma := ifelse(IsSignificant,  0.1 * sqrt(max(change)), rlnorm(1, -2.5, 0.7)),
+               by = c("Protein")]
+    tmt_design[, RandomError := rnorm(.N, 0, unique(RandomErrorSigma)),
+               by = c("Protein")]
+    tmt_design[, RandomErrorSigma := NULL]
   }
 
-  tmt_design[, change := change]
   tmt_design[, Abundance := baseline + change * IsSignificant + MixtureVariability +
                SubjectVariability + ConditionVariability + RandomError]
   tmt_design[, MixtureVariability := NULL]
