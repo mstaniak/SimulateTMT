@@ -50,13 +50,23 @@ add_variability = function(labels, sd) {
 
 add_condition_variability = function(input, sd_cond_mix) {
   tmt_by_log2fc = split(input, input[["change"]])
-  tmt_by_log2fc = lapply(tmt_by_log2fc, function(x) {
-    log2fc = unique(x$change)
-    sd_cond = sd_cond_mix[[as.character(log2fc)]]
-    x[, ConditionVariability := add_variability(MixCond, sd_cond),
-      by = "Protein"]
-    x
-  })
+  if (length(sd_cond_mix) == 1) {
+    tmt_by_log2fc = lapply(tmt_by_log2fc, function(x) {
+      log2fc = unique(x$change)
+      sd_cond = sd_cond_mix[[1]]
+      x[, ConditionVariability := add_variability(MixCond, sd_cond),
+        by = "Protein"]
+      x
+    })
+  } else {
+    tmt_by_log2fc = lapply(tmt_by_log2fc, function(x) {
+      log2fc = unique(x$change)
+      sd_cond = sd_cond_mix[[as.character(log2fc)]]
+      x[, ConditionVariability := add_variability(MixCond, sd_cond),
+        by = "Protein"]
+      x
+    })
+  }
   data.table::rbindlist(tmt_by_log2fc)
 }
 
