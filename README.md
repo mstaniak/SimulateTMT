@@ -7,7 +7,7 @@ Output follows the `MSstats` format and can be used to evaluate protein quantifi
 and all observations are perturbation of user-defined protein-level summaries. Hence, both estimation of protein-level abundances and of log-fold changes can be evaluated. 
 Various experimental designs and structures of peptide-protein networks can be simulated. 
 
-## Installation:
+## Installation
 
 ```
 if (!require(devtools)) {
